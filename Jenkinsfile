@@ -8,32 +8,30 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // Checkout the repo using token (if needed for private repo)
-                git url: 'https://github.com/ahmedrabe33/webhook.git', credentialsId: 'github-token'
+                echo 'Checking out source code from public GitHub repository...'
+                checkout scm
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Verify Tools') {
             steps {
-                echo 'Installing PHP dependencies...'
+                echo 'Verifying PHP and PHPUnit...'
                 sh '''
-                    apt update
-                    apt install -y php-cli php-mbstring php-xml php-curl unzip
-                    wget -O /usr/local/bin/phpunit https://phar.phpunit.de/phpunit-9.phar
-                    chmod +x /usr/local/bin/phpunit
+                    php -v
+                    phpunit --version
                 '''
             }
         }
 
-        stage('Check GitHub Secret') {
+        stage('Show Workspace') {
             steps {
-                echo 'Checking GitHub token from Jenkins Credentials...'
-                withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
-                    sh '''
-                        echo "GitHub token exists securely in Jenkins."
-                        test -n "$GITHUB_TOKEN"
-                    '''
-                }
+                echo 'Showing project files...'
+                sh '''
+                    pwd
+                    ls -la
+                    echo "Tests directory:"
+                    ls -la tests || true
+                '''
             }
         }
 
@@ -41,10 +39,11 @@ pipeline {
             steps {
                 echo 'Running PHPUnit tests...'
                 sh '''
-                    if [ -f "tests/TestExample.php" ]; then
+                    if [ -d "tests" ]; then
                         phpunit --colors=always tests
                     else
-                        echo "No tests found, skipping..."
+                        echo "ERROR: tests directory not found"
+                        exit 1
                     fi
                 '''
             }
