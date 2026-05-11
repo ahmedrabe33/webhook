@@ -1,27 +1,37 @@
 pipeline {
-    agent { label 'docker' }  // Run only on Jenkins agents with label "docker"
+    agent { label 'docker' }
 
-    environment {
-        GITHUB_TOKEN = credentials('github-token') // Jenkins credential ID
+    triggers {
+        githubPush()
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Checkout the repo using token (if needed for private repo)
-                git url: 'https://github.com/ahmedrabe33/webhook.git', credentialsId: 'github-token'
+                echo 'Checking out source code...'
+                checkout scm
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Verify Tools') {
             steps {
-                echo 'Installing PHP dependencies...'
+                echo 'Checking PHP and PHPUnit installation...'
                 sh '''
-                    apt update
-                    apt install -y php-cli php-mbstring php-xml php-curl unzip
-                    wget -O /usr/local/bin/phpunit https://phar.phpunit.de/phpunit-9.phar
-                    chmod +x /usr/local/bin/phpunit
+                    php -v
+                    phpunit --version
                 '''
+            }
+        }
+
+        stage('Check GitHub Secret') {
+            steps {
+                echo 'Checking GitHub token from Jenkins Credentials...'
+                withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                    sh '''
+                        echo "GitHub token exists securely in Jenkins."
+                        test -n "$GITHUB_TOKEN"
+                    '''
+                }
             }
         }
 
@@ -29,11 +39,7 @@ pipeline {
             steps {
                 echo 'Running PHPUnit tests...'
                 sh '''
-                    if [ -f "tests/TestExample.php" ]; then
-                        phpunit --colors=always tests
-                    else
-                        echo "No tests found, skipping..."
-                    fi
+                    phpunit --colors=always tests
                 '''
             }
         }
@@ -43,12 +49,13 @@ pipeline {
         success {
             echo 'Build succeeded! ✅'
         }
+
         failure {
             echo 'Build failed! ❌'
         }
+
         always {
-            echo 'Cleaning up...'
-            cleanWs()
+            echo 'Pipeline finished.'
         }
     }
 }
